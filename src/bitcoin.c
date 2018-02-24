@@ -92,28 +92,38 @@ out:
 	return ret;
 }
 
-static const char *gbt_req = "{\"method\": \"getblocktemplate\", \"params\": [{\"capabilities\": [\"coinbasetxn\", \"workid\", \"coinbase/append\"], \"rules\" : [\"segwit\"]}]}\n";
-
+#ifndef	_COINBASETXN_
+static const char *gbt_req = "{\"method\": \"getblocktemplate\", \"params\": [{\"capabilities\": [\"coinbasetxn\", \"workid\", \"coinbase/append\"], \"rules\" : [\"segwit\"]}], \"id\":0}\n";
+#else
+static const char *gbt_req = "{\"method\": \"getblocktemplate\", \"params\": [{\"capabilities\": [\"coinbasetxn\", \"workid\", \"coinbase/append\"], \"rules\" : [\"segwit\"], \"coinbase-addr\": \"%s\"}], \"id\":0}\n";
+#endif
 /* Request getblocktemplate from bitcoind already connected with a connsock_t
  * and then summarise the information to the most efficient set of data
  * required to assemble a mining template, storing it in a gbtbase_t structure */
 bool gen_gbtbase(connsock_t *cs, gbtbase_t *gbt)
 {
-	json_t *rules_array, *coinbase_aux, *res_val, *val;
+	json_t *rules_array, *coinbase_aux, *coinbasetxn, *res_val, *val;
+	const char	*coinbasetxn_data = NULL;
 	const char *previousblockhash;
 	char hash_swap[32], tmp[32];
 	uint64_t coinbasevalue;
-	const char *target;
-	const char *flags;
-	const char *bits;
-	const char *rule;
+	const char *target = NULL;
+	const char *flags = NULL;
+	const char *bits = NULL;
+	const char *rule = NULL;
 	int version;
 	int curtime;
 	int height;
 	int i;
 	bool ret = false;
+	char req[512] = {0};
 
-	val = json_rpc_call(cs, gbt_req);
+#ifndef	_COINBASETXN_
+	snprintf(req, 512, "%s", gbt_req);
+#else
+	snprintf(req, 512, gbt_req, cs->ckp->btcaddress);
+#endif
+	val = json_rpc_call(cs, req);
 	if (!val) {
 		LOGWARNING("%s:%s Failed to get valid json response to getblocktemplate", cs->url, cs->port);
 		return ret;
@@ -144,11 +154,16 @@ bool gen_gbtbase(connsock_t *cs, gbtbase_t *gbt)
 	bits = json_string_value(json_object_get(res_val, "bits"));
 	height = json_integer_value(json_object_get(res_val, "height"));
 	coinbasevalue = json_integer_value(json_object_get(res_val, "coinbasevalue"));
-	coinbase_aux = json_object_get(res_val, "coinbaseaux");
-	flags = json_string_value(json_object_get(coinbase_aux, "flags"));
+	if (coinbasevalue) {
+		coinbase_aux = json_object_get(res_val, "coinbaseaux");
+		flags = json_string_value(json_object_get(coinbase_aux, "flags"));
+	} else {
+		coinbasetxn = json_object_get(res_val, "coinbasetxn");
+		coinbasetxn_data = json_string_value(json_object_get(coinbasetxn, "data"));
+	}
 
-	if (unlikely(!previousblockhash || !target || !version || !curtime || !bits || !coinbase_aux || !flags)) {
-		LOGERR("JSON failed to decode GBT %s %s %d %d %s %s", previousblockhash, target, version, curtime, bits, flags);
+	if (unlikely(!previousblockhash || !target || !version || !curtime || !bits )) {
+		LOGERR("JSON failed to decode GBT %s %s %d %d %s", previousblockhash, target, version, curtime, bits);
 		goto out;
 	}
 
@@ -185,9 +200,12 @@ bool gen_gbtbase(connsock_t *cs, gbtbase_t *gbt)
 	gbt->coinbasevalue = coinbasevalue;
 
 	gbt->height = height;
-
-	gbt->flags = strdup(flags);
-
+	
+	if (flags)
+		gbt->flags = strdup(flags);
+	else
+		gbt->coinbasetxn_data = strdup(coinbasetxn_data);
+	
 	ret = true;
 out:
 	json_decref(val);
@@ -196,7 +214,8 @@ out:
 
 void clear_gbtbase(gbtbase_t *gbt)
 {
-	free(gbt->flags);
+	if (gbt->coinbasetxn_data) free(gbt->coinbasetxn_data);
+	if (gbt->flags) free(gbt->flags);
 	if (gbt->json)
 		json_decref(gbt->json);
 	memset(gbt, 0, sizeof(gbtbase_t));

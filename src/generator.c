@@ -218,6 +218,8 @@ static bool server_alive(ckpool_t *ckp, server_instance_t *si, bool pinging)
 	connsock_t *cs;
 	gbtbase_t gbt;
 	int fd;
+	
+	memset(&gbt, 0, sizeof(gbt));
 
 	if (si->alive)
 		return true;

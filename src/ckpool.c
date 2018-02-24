@@ -311,7 +311,7 @@ static void *unix_receiver(void *arg)
 unix_msg_t *get_unix_msg(proc_instance_t *pi)
 {
 	unix_msg_t *umsg;
-
+	
 	mutex_lock(&pi->rmsg_lock);
 	if (!pi->unix_msgs) {
 		tv_t now;
@@ -1797,8 +1797,9 @@ int main(int argc, char **argv)
 		if (!ckp.btcdpass[i])
 			ckp.btcdpass[i] = strdup("pass");
 	}
-
-	ckp.donaddress = "14BMjogz69qe8hk9thyzbmR5pg34mVKB1e";
+	
+	// liudf 20180224
+	ckp.donaddress = "wMqY4aWujzbh3wdcUnZSTAg2nARHQ27vwQ";
 	if (!ckp.btcaddress)
 		ckp.btcaddress = ckp.donaddress;
 	if (!ckp.blockpoll)

@@ -47,6 +47,7 @@ struct genwork {
 	uint64_t coinbasevalue;
 	int height;
 	char *flags;
+	char *coinbasetxn_data;
 	int txns;
 	char *txn_data;
 	char *txn_hashes;
@@ -72,7 +73,7 @@ struct genwork {
 	char *coinb2; // coinbase2
 	uchar *coinb2bin;
 	int coinb2len; // length of above
-
+	
 	/* Cached header binary */
 	char headerbin[112];
 

@@ -40,7 +40,7 @@ void logmsg(int loglevel, const char *fmt, ...)
 		VASPRINTF(&buf, fmt, ap);
 		va_end(ap);
 
-		printf("%s\n", buf);
+		printf("%s %s\n", __FILE__,  buf);
 		free(buf);
 	}
 }

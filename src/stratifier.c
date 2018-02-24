@@ -528,11 +528,12 @@ static void info_msg_entries(char_entry_t **entries)
 
 static const int witnessdata_size = 36; // commitment header + hash
 
+// liudf 20180208 need modify these code to satisfy wificoin
 static void generate_coinbase(const ckpool_t *ckp, workbase_t *wb)
 {
 	uint64_t *u64, g64, d64 = 0;
 	sdata_t *sdata = ckp->sdata;
-	char header[228];
+	char header[228] = {0};
 	int len, ofs = 0;
 	ts_t now;
 
@@ -551,11 +552,13 @@ static void generate_coinbase(const ckpool_t *ckp, workbase_t *wb)
 	len = ser_number(wb->coinb1bin + ofs, wb->height);
 	ofs += len;
 
-	/* Followed by flag */
-	len = strlen(wb->flags) / 2;
-	wb->coinb1bin[ofs++] = len;
-	hex2bin(wb->coinb1bin + ofs, wb->flags, len);
-	ofs += len;
+	if (wb->flags) {
+		/* Followed by flag */
+		len = strlen(wb->flags) / 2;
+		wb->coinb1bin[ofs++] = len;
+		hex2bin(wb->coinb1bin + ofs, wb->flags, len);
+		ofs += len;
+	}
 
 	/* Followed by timestamp */
 	ts_realtime(&now);
@@ -577,7 +580,7 @@ static void generate_coinbase(const ckpool_t *ckp, workbase_t *wb)
 	len += wb->enonce1varlen;
 	len += wb->enonce2varlen;
 
-	wb->coinb2bin = ckzalloc(256);
+	wb->coinb2bin = ckzalloc(2560);
 	memcpy(wb->coinb2bin, "\x0a\x63\x6b\x70\x6f\x6f\x6c", 7);
 	wb->coinb2len = 7;
 	if (ckp->btcsig) {
@@ -599,44 +602,50 @@ static void generate_coinbase(const ckpool_t *ckp, workbase_t *wb)
 
 	memcpy(wb->coinb2bin + wb->coinb2len, "\xff\xff\xff\xff", 4);
 	wb->coinb2len += 4;
+	
+	if (wb->flags == NULL) {
+		int cbt_size = strlen(wb->coinbasetxn_data)/2;
+		hex2bin(&wb->coinb2bin[wb->coinb2len], wb->coinbasetxn_data, cbt_size);
+		wb->coinb2len += cbt_size;
+	} else {
+		// Generation value
+		g64 = wb->coinbasevalue;
+		if (ckp->donvalid) {
+			d64 = g64 / 200; // 0.5% donation
+			g64 -= d64; // To guarantee integers add up to the original coinbasevalue
+			wb->coinb2bin[wb->coinb2len++] = 2 + wb->insert_witness;
+		} else
+			wb->coinb2bin[wb->coinb2len++] = 1 + wb->insert_witness;
 
-	// Generation value
-	g64 = wb->coinbasevalue;
-	if (ckp->donvalid) {
-		d64 = g64 / 200; // 0.5% donation
-		g64 -= d64; // To guarantee integers add up to the original coinbasevalue
-		wb->coinb2bin[wb->coinb2len++] = 2 + wb->insert_witness;
-	} else
-		wb->coinb2bin[wb->coinb2len++] = 1 + wb->insert_witness;
-
-	u64 = (uint64_t *)&wb->coinb2bin[wb->coinb2len];
-	*u64 = htole64(g64);
-	wb->coinb2len += 8;
-
-	wb->coinb2bin[wb->coinb2len++] = sdata->pubkeytxnlen;
-	memcpy(wb->coinb2bin + wb->coinb2len, sdata->pubkeytxnbin, sdata->pubkeytxnlen);
-	wb->coinb2len += sdata->pubkeytxnlen;
-
-	if (wb->insert_witness) {
-		// 0 value
-		wb->coinb2len += 8;
-
-		wb->coinb2bin[wb->coinb2len++] = witnessdata_size + 2; // total scriptPubKey size
-		wb->coinb2bin[wb->coinb2len++] = 0x6a; // OP_RETURN
-		wb->coinb2bin[wb->coinb2len++] = witnessdata_size;
-
-		hex2bin(&wb->coinb2bin[wb->coinb2len], wb->witnessdata, witnessdata_size);
-		wb->coinb2len += witnessdata_size;
-	}
-
-	if (ckp->donvalid) {
 		u64 = (uint64_t *)&wb->coinb2bin[wb->coinb2len];
-		*u64 = htole64(d64);
+		*u64 = htole64(g64);
 		wb->coinb2len += 8;
 
-		wb->coinb2bin[wb->coinb2len++] = sdata->donkeytxnlen;
-		memcpy(wb->coinb2bin + wb->coinb2len, sdata->donkeytxnbin, sdata->donkeytxnlen);
-		wb->coinb2len += sdata->donkeytxnlen;
+		wb->coinb2bin[wb->coinb2len++] = sdata->pubkeytxnlen;
+		memcpy(wb->coinb2bin + wb->coinb2len, sdata->pubkeytxnbin, sdata->pubkeytxnlen);
+		wb->coinb2len += sdata->pubkeytxnlen;
+
+		if (wb->insert_witness) {
+			// 0 value
+			wb->coinb2len += 8;
+
+			wb->coinb2bin[wb->coinb2len++] = witnessdata_size + 2; // total scriptPubKey size
+			wb->coinb2bin[wb->coinb2len++] = 0x6a; // OP_RETURN
+			wb->coinb2bin[wb->coinb2len++] = witnessdata_size;
+
+			hex2bin(&wb->coinb2bin[wb->coinb2len], wb->witnessdata, witnessdata_size);
+			wb->coinb2len += witnessdata_size;
+		}
+
+		if (ckp->donvalid) {
+			u64 = (uint64_t *)&wb->coinb2bin[wb->coinb2len];
+			*u64 = htole64(d64);
+			wb->coinb2len += 8;
+
+			wb->coinb2bin[wb->coinb2len++] = sdata->donkeytxnlen;
+			memcpy(wb->coinb2bin + wb->coinb2len, sdata->donkeytxnbin, sdata->donkeytxnlen);
+			wb->coinb2len += sdata->donkeytxnlen;
+		}
 	}
 
 	wb->coinb2len += 4; // Blank lock
@@ -659,7 +668,10 @@ static void stratum_broadcast_update(sdata_t *sdata, const workbase_t *wb, bool 
 
 static void clear_workbase(workbase_t *wb)
 {
-	free(wb->flags);
+	if (wb->coinbasetxn_data)
+		free(wb->coinbasetxn_data);
+	if (wb->flags)
+		free(wb->flags);
 	free(wb->txn_data);
 	free(wb->txn_hashes);
 	free(wb->logdir);
@@ -881,7 +893,10 @@ static void send_node_workinfo(ckpool_t *ckp, sdata_t *sdata, const workbase_t *
 	json_set_string(wb_val, "nbit", wb->nbit);
 	json_set_int(wb_val, "coinbasevalue", wb->coinbasevalue);
 	json_set_int(wb_val, "height", wb->height);
-	json_set_string(wb_val, "flags", wb->flags);
+	if (wb->flags)
+		json_set_string(wb_val, "flags", wb->flags);
+	else
+		json_set_string(wb_val, "coinbasetxn_data", wb->coinbasetxn_data);
 	json_set_int(wb_val, "txns", wb->txns);
 	json_set_string(wb_val, "txn_hashes", wb->txn_hashes);
 	json_set_int(wb_val, "merkles", wb->merkles);
@@ -1809,8 +1824,9 @@ static void add_node_base(ckpool_t *ckp, json_t *val, bool trusted, int64_t clie
 	sscanf(wb->ntime, "%x", &wb->ntime32);
 	json_strcpy(wb->bbversion, val, "bbversion");
 	json_strcpy(wb->nbit, val, "nbit");
-	json_uint64cpy(&wb->coinbasevalue, val, "coinbasevalue");
 	json_intcpy(&wb->height, val, "height");
+	// liudf need to confirmed
+	json_uint64cpy(&wb->coinbasevalue, val, "coinbasevalue");
 	json_strdup(&wb->flags, val, "flags");
 
 	json_intcpy(&wb->txns, val, "txns");
@@ -4462,7 +4478,7 @@ static void stratum_loop(ckpool_t *ckp, proc_instance_t *pi)
 	unix_msg_t *umsg = NULL;
 	int ret = 0;
 	char *buf;
-
+	
 retry:
 	if (umsg) {
 		Close(umsg->sockd);
@@ -4472,6 +4488,7 @@ retry:
 
 	do {
 		time_t end_t;
+
 
 		end_t = time(NULL);
 		if (end_t - sdata->update_time >= ckp->update_interval) {
@@ -4489,6 +4506,7 @@ retry:
 
 		umsg = get_unix_msg(pi);
 	} while (!umsg);
+
 
 	buf = umsg->buf;
 	if (buf[0] == '{') {
@@ -5874,9 +5892,10 @@ test_blocksolve(const stratum_instance_t *client, const workbase_t *wb, const uc
 	ts_t ts_now;
 	bool ret;
 
+	// liudf 20180224, comment this
 	/* Submit anything over 99.9% of the diff in case of rounding errors */
-	if (likely(diff < sdata->current_workbase->network_diff * 0.999))
-		return;
+	//if (likely(diff < sdata->current_workbase->network_diff * 0.999))
+	//	return;
 
 	LOGWARNING("Possible %sblock solve diff %lf !", stale ? "stale share " : "", diff);
 	/* Can't submit a block in proxy mode without the transactions */
@@ -6236,8 +6255,8 @@ out_nowb:
 	json_set_string(val, "createinet", ckp->serverurl[client->server]);
 	json_set_string(val, "workername", client->workername);
 	json_set_string(val, "username", user->username);
-        json_set_string(val, "address", client->address);
-        json_set_string(val, "agent", client->useragent);
+    json_set_string(val, "address", client->address);
+    json_set_string(val, "agent", client->useragent);
 
 	if (ckp->logshares) {
 		fp = fopen(fname, "ae");
@@ -6527,6 +6546,7 @@ static void parse_method(ckpool_t *ckp, sdata_t *sdata, stratum_instance_t *clie
 	 * most common messages will be shares so look for those first */
 	method = json_string_value(method_val);
 	if (likely(cmdmatch(method, "mining.submit") && client->authorised)) {
+		LOGDEBUG("Mining submit requested from %s %s", client->identity, client->address);
 		json_params_t *jp = create_json_params(client_id, method_val, params_val, id_val);
 
 		ckmsgq_add(sdata->sshareq, jp);
@@ -7439,6 +7459,7 @@ static void srecv_process(ckpool_t *ckp, json_t *val)
 		LOGWARNING("srecv_process received NULL val!");
 		return;
 	}
+	
 
 	msg = ckzalloc(sizeof(smsg_t));
 	msg->json_msg = val;
@@ -7465,6 +7486,7 @@ static void srecv_process(ckpool_t *ckp, json_t *val)
 	strcpy(address, json_string_value(val));
 	json_object_clear(val);
 
+
 	val = json_object_get(msg->json_msg, "server");
 	if (unlikely(!val)) {
 		buf = json_dumps(val, JSON_COMPACT);
@@ -7473,6 +7495,7 @@ static void srecv_process(ckpool_t *ckp, json_t *val)
 	}
 	server = json_integer_value(val);
 	json_object_clear(val);
+
 
 	/* Parse the message here */
 	ck_wlock(&sdata->instance_lock);
@@ -7497,12 +7520,13 @@ static void srecv_process(ckpool_t *ckp, json_t *val)
 	if (unlikely(noid))
 		LOGINFO("Stratifier added instance %s server %d", client->identity, server);
 
-	if (client->trusted)
+	if (client->trusted) {
 		parse_trusted_msg(ckp, sdata, msg->json_msg, client);
-	else if (ckp->node)
+	} else if (ckp->node) {
 		node_client_msg(ckp, msg->json_msg, client);
-	else
+	} else {
 		parse_instance_msg(ckp, sdata, msg, client);
+	}
 	dec_instance_ref(sdata, client);
 out:
 	free_smsg(msg);
