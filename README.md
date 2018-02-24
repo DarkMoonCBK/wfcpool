@@ -1,5 +1,7 @@
 WFCPOOL fork from ckpool and modified to support wificoind
+
 our team promise it can be used to support wificoin mining and not btc's mining 
+
 therefore DONT use it as BTC pool 
 
 ### u can contact us by join our qq group: 424031785
