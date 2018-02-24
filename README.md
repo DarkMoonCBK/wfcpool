@@ -2,9 +2,11 @@ WFCPOOL fork from ckpool and modified to support wificoind
 our team promise it can be used to support wificoin mining and not btc's mining 
 therefore DONT use it as BTC pool 
 
+### u can contact us by join our qq group: 424031785
+
+```
 the FOLLOWING content can be used as reference to compile the wfcpool project!
 
-### u can contact us by join our qq group: 424031785
 
 CKPOOL + CKDB + libckpool by Con Kolivas and Andrew Smith.
 
@@ -314,3 +316,4 @@ maximum.
 
 "maxclients" : Optional upper limit on the number of clients ckpool will
 accept before rejecting further clients.
+```
