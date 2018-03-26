@@ -272,9 +272,9 @@ static void *unix_receiver(void *arg)
 {
 	proc_instance_t *pi = (proc_instance_t *)arg;
 	int rsockd = pi->us.sockd, sockd;
-	char qname[16];
+	char qname[16] = {0};
 
-	sprintf(qname, "%cunixrq", pi->processname[0]);
+	snprintf(qname, 16,  "%cunixrq", pi->processname[0]);
 	rename_proc(qname);
 	pthread_detach(pthread_self());
 
@@ -1608,7 +1608,7 @@ int main(int argc, char **argv)
 {
 	struct sigaction handler;
 	int c, ret, i = 0, j;
-	char buf[512] = {};
+	char buf[512] = {0};
 	ckpool_t ckp;
 
 	/* Make significant floating point errors fatal to avoid subtle bugs being missed */
@@ -1819,7 +1819,7 @@ int main(int argc, char **argv)
 	if (!ckp.mindiff)
 		ckp.mindiff = 1;
 	if (!ckp.startdiff)
-		ckp.startdiff = 42;
+		ckp.startdiff = 1;
 	if (!ckp.logdir)
 		ckp.logdir = strdup("logs");
 	if (!ckp.serverurls)

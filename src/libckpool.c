@@ -2041,10 +2041,12 @@ void suffix_string(double val, char *buf, size_t bufsiz, int sigdigits)
 	}
 }
 
-/* truediffone == 0x00000000FFFF0000000000000000000000000000000000000000000000000000
+// liudf 20180308 modified truediffone
+// need change here
+/* truediffone == 0x000000FFFFF00000000000000000000000000000000000000000000000000000
  * Generate a 256 bit binary LE target by cutting up diff into 64 bit sized
  * portions or vice versa. */
-static const double truediffone = 26959535291011309493156476344723991336010898738574164086137773096960.0;
+static const double truediffone = 110427836236357352041769395878404723568785424659630784333489133269811200.0;
 static const double bits192 = 6277101735386680763835789423207666416102355444464034512896.0;
 static const double bits128 = 340282366920938463463374607431768211456.0;
 static const double bits64 = 18446744073709551616.0;
@@ -2084,6 +2086,7 @@ double diff_from_target(uchar *target)
 
 /* Return the network difficulty from the block header which is in packed form,
  * as a double. */
+// liudf need to review it
 double diff_from_nbits(char *nbits)
 {
 	double numerator;
@@ -2092,11 +2095,10 @@ double diff_from_nbits(char *nbits)
 	int powdiff;
 
 	pow = nbits[0];
-	powdiff = (8 * (0x1d - 3)) - (8 * (pow - 3));
-	if (powdiff < 8) // testnet only
-		powdiff = 8;
+	// liudf 20180308 
+	powdiff = (8 * (0x1f - 3)) - (8 * (pow - 3));
 	diff32 = be32toh(*((uint32_t *)nbits)) & 0x00FFFFFF;
-	numerator = 0xFFFFULL << powdiff;
+	numerator = 0xFFFFFULL << powdiff;
 
 	return numerator / (double)diff32;
 }
@@ -2106,7 +2108,7 @@ void target_from_diff(uchar *target, double diff)
 	uint64_t *data64, h64;
 	double d64, dcut64;
 
-	if (unlikely(diff == 0.0)) {
+	if (unlikely(diff < 1.0)) {
 		/* This shouldn't happen but best we check to prevent a crash */
 		memset(target, 0xff, 32);
 		return;
@@ -2146,7 +2148,7 @@ void target_from_diff(uchar *target, double diff)
 
 void gen_hash(uchar *data, uchar *hash, int len)
 {
-	uchar hash1[32];
+	uchar hash1[32] = {0};
 
 	sha256(data, len, hash1);
 	sha256(hash1, 32, hash);

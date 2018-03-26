@@ -35,7 +35,7 @@ static bool check_required_rule(const char* rule)
 bool validate_address(connsock_t *cs, const char *address)
 {
 	json_t *val, *res_val, *valid_val;
-	char rpc_req[128];
+	char rpc_req[128] = {0};
 	bool ret = false;
 	int len, i, j;
 
@@ -105,7 +105,7 @@ bool gen_gbtbase(connsock_t *cs, gbtbase_t *gbt)
 	json_t *rules_array, *coinbase_aux, *coinbasetxn, *res_val, *val;
 	const char	*coinbasetxn_data = NULL;
 	const char *previousblockhash;
-	char hash_swap[32], tmp[32];
+	char hash_swap[32] = {0}, tmp[32] = {0};
 	uint64_t coinbasevalue;
 	const char *target = NULL;
 	const char *flags = NULL;

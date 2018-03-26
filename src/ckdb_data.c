@@ -3575,8 +3575,8 @@ void _dsp_hash(char *hash, char *buf, size_t siz, WHERE_FFL_ARGS)
 
 double _blockhash_diff(char *hash, WHERE_FFL_ARGS)
 {
-	uchar binhash[SHA256SIZHEX >> 1];
-	uchar swap[SHA256SIZHEX >> 1];
+	uchar binhash[SHA256SIZHEX >> 1] = {0};
+	uchar swap[SHA256SIZHEX >> 1] = {0};
 	size_t len;
 
 	len = strlen(hash);

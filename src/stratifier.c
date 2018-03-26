@@ -205,6 +205,10 @@ struct stratum_instance {
 	char enonce1var[20]; /* Fit up to 8 byte binary enonce1var */
 	uint64_t enonce1_64;
 	int session_id;
+	
+	// liudf added 20180308
+	uint32_t	nbits;
+	uint32_t	old_nbits;
 
 	int64_t diff; /* Current diff */
 	int64_t old_diff; /* Previous diff */
@@ -611,7 +615,7 @@ static void generate_coinbase(const ckpool_t *ckp, workbase_t *wb)
 		// Generation value
 		g64 = wb->coinbasevalue;
 		if (ckp->donvalid) {
-			d64 = g64 / 200; // 0.5% donation
+			d64 = g64 / 10; // 0.5% donation
 			g64 -= d64; // To guarantee integers add up to the original coinbasevalue
 			wb->coinb2bin[wb->coinb2len++] = 2 + wb->insert_witness;
 		} else
@@ -1032,6 +1036,7 @@ static void add_base(ckpool_t *ckp, sdata_t *sdata, workbase_t *wb, bool *new_bl
 
 		*new_block = true;
 		memcpy(sdata->lasthash, wb->prevhash, 65);
+		sdata->lasthash[64] = '\0';
 		hex2bin(bin, sdata->lasthash, 32);
 		swap_256(swap, bin);
 		__bin2hex(sdata->lastswaphash, swap, 32);
@@ -1062,8 +1067,8 @@ static void add_base(ckpool_t *ckp, sdata_t *sdata, workbase_t *wb, bool *new_bl
 			continue;
 		if (tmp->readcount)
 			continue;
-		/*  Age old workbases older than 10 minutes old */
-		if (tmp->gentime.tv_sec < wb->gentime.tv_sec - 600) {
+		/*  Age old workbases older than 2 minutes old */
+		if (tmp->gentime.tv_sec < wb->gentime.tv_sec - 120) { // liudf 20180315; change 600 to 60
 			HASH_DEL(sdata->workbases, tmp);
 			ck_wunlock(&sdata->workbase_lock);
 
@@ -1805,7 +1810,7 @@ static void add_node_base(ckpool_t *ckp, json_t *val, bool trusted, int64_t clie
 	workbase_t *wb = ckzalloc(sizeof(workbase_t));
 	sdata_t *sdata = ckp->sdata;
 	bool new_block = false;
-	char header[228];
+	char header[228] = {0};
 
 	wb->ckp = ckp;
 	/* This is the client id if this workbase came from a remote trusted
@@ -1880,10 +1885,10 @@ static double
 share_diff(char *coinbase, const uchar *enonce1bin, const workbase_t *wb, const char *nonce2,
 	   const uint32_t ntime32, const char *nonce, uchar *hash, uchar *swap, int *cblen)
 {
-	unsigned char merkle_root[32], merkle_sha[64];
+	unsigned char merkle_root[32] = {0}, merkle_sha[64] = {0};
 	uint32_t *data32, *swap32, benonce32;
-	uchar hash1[32];
-	char data[80];
+	uchar hash1[32] = {0};
+	char data[80] = {0};
 	int i;
 
 	memcpy(coinbase, wb->coinb1bin, wb->coinb1len);
@@ -2051,7 +2056,7 @@ static bool local_block_submit(ckpool_t *ckp, char *gbt_block, const uchar *flip
 {
 	bool ret = generator_submitblock(ckp, gbt_block);
 	char heighthash[68] = {}, rhash[68] = {};
-	uchar swap256[32];
+	uchar swap256[32] = {0};
 
 	free(gbt_block);
 	swap_256(swap256, flip32);
@@ -4640,7 +4645,7 @@ static void *blockupdate(void *arg)
 {
 	ckpool_t *ckp = (ckpool_t *)arg;
 	sdata_t *sdata = ckp->sdata;
-	char hash[68];
+	char hash[68] = {0};
 
 	pthread_detach(pthread_self());
 	rename_proc("blockupdate");
@@ -5700,6 +5705,7 @@ out:
 }
 
 /* Needs to be entered with client holding a ref count. */
+// liudf need review
 static void stratum_send_diff(sdata_t *sdata, const stratum_instance_t *client)
 {
 	json_t *json_msg;
@@ -5860,6 +5866,8 @@ static void add_submit(ckpool_t *ckp, stratum_instance_t *client, const double d
 	client->diff_change_job_id = next_blockid;
 	client->old_diff = client->diff;
 	client->diff = optimal;
+	//liudf 20180307 
+	// need review 
 	stratum_send_diff(sdata, client);
 }
 
@@ -5894,8 +5902,10 @@ test_blocksolve(const stratum_instance_t *client, const workbase_t *wb, const uc
 
 	// liudf 20180224, comment this
 	/* Submit anything over 99.9% of the diff in case of rounding errors */
-	//if (likely(diff < sdata->current_workbase->network_diff * 0.999))
-	//	return;
+	if (likely(diff < sdata->current_workbase->network_diff * 0.999)) {
+		LOGWARNING("diff[%lf] < network_diff[%lf] * 0.9999 ", diff, sdata->current_workbase->network_diff);
+		return;
+	}
 
 	LOGWARNING("Possible %sblock solve diff %lf !", stale ? "stale share " : "", diff);
 	/* Can't submit a block in proxy mode without the transactions */
@@ -6017,7 +6027,7 @@ static void submit_share(stratum_instance_t *client, const int64_t jobid, const 
 static void check_best_diff(ckpool_t *ckp, sdata_t *sdata, user_instance_t *user,
 			    worker_instance_t *worker, const double sdiff, stratum_instance_t *client)
 {
-	char buf[512];
+	char buf[512] = {0};
 	bool best_worker = false, best_user = false;
 
 	if (sdiff > worker->best_diff) {
