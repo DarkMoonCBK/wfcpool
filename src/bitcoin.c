@@ -123,6 +123,9 @@ bool gen_gbtbase(connsock_t *cs, gbtbase_t *gbt)
 #else
 	snprintf(req, 512, gbt_req, cs->ckp->btcaddress);
 #endif
+	
+	LOGWARNING("req is %s", req);
+
 	val = json_rpc_call(cs, req);
 	if (!val) {
 		LOGWARNING("%s:%s Failed to get valid json response to getblocktemplate", cs->url, cs->port);
@@ -146,6 +149,10 @@ bool gen_gbtbase(connsock_t *cs, gbtbase_t *gbt)
 			}
 		}
 	}
+	
+	char *buf = json_dumps(res_val, JSON_COMPACT);
+    LOGWARNING("Failed to extract server from connector json smsg %s", buf);
+	free(buf);
 
 	previousblockhash = json_string_value(json_object_get(res_val, "previousblockhash"));
 	target = json_string_value(json_object_get(res_val, "target"));
@@ -162,10 +169,11 @@ bool gen_gbtbase(connsock_t *cs, gbtbase_t *gbt)
 		coinbasetxn_data = json_string_value(json_object_get(coinbasetxn, "data"));
 	}
 
-	if (unlikely(!previousblockhash || !target || !version || !curtime || !bits )) {
-		LOGERR("JSON failed to decode GBT %s %s %d %d %s", previousblockhash, target, version, curtime, bits);
-		goto out;
-	}
+	if (unlikely(!previousblockhash || !target || !version || !curtime || !bits || !coinbase_aux || !flags)) {
+        LOGERR("JSON failed to decode GBT %s %s %d %d %s %s", previousblockhash, target, version, curtime, bits, flags);
+        goto out;
+    }
+
 
 	/* Store getblocktemplate for remainder of json components as is */
 	json_incref(res_val);
