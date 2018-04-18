@@ -34,7 +34,7 @@
 static const char *workpadding = "000000800000000000000000000000000000000000000000000000000000000000000000000000000000000080020000";
 static const char *scriptsig_header = "01000000010000000000000000000000000000000000000000000000000000000000000000ffffffff";
 static uchar scriptsig_header_bin[41];
-static const double nonces = 4294967296;
+static const double nonces = 1048576;
 
 /* Add unaccounted shares when they arrive, remove them with each update of
  * rolling stats. */
@@ -205,10 +205,6 @@ struct stratum_instance {
 	char enonce1var[20]; /* Fit up to 8 byte binary enonce1var */
 	uint64_t enonce1_64;
 	int session_id;
-	
-	// liudf added 20180308
-	uint32_t	nbits;
-	uint32_t	old_nbits;
 
 	int64_t diff; /* Current diff */
 	int64_t old_diff; /* Previous diff */
@@ -5071,7 +5067,7 @@ static worker_instance_t *get_create_worker(sdata_t *sdata, user_instance_t *use
 /* Load the statistics of and create all known users at startup */
 static void read_userstats(ckpool_t *ckp, sdata_t *sdata, int tvsec_diff)
 {
-	char dnam[512], s[512], *username;
+	char dnam[512] = {0}, s[512] = {0}, *username;
 	user_instance_t *user;
 	struct dirent *dir;
 	bool new_user;
@@ -5903,7 +5899,7 @@ test_blocksolve(const stratum_instance_t *client, const workbase_t *wb, const uc
 	// liudf 20180224, comment this
 	/* Submit anything over 99.9% of the diff in case of rounding errors */
 	if (likely(diff < sdata->current_workbase->network_diff * 0.999)) {
-		LOGWARNING("diff[%lf] < network_diff[%lf] * 0.9999 ", diff, sdata->current_workbase->network_diff);
+		//LOGWARNING("diff[%lf] < network_diff[%lf] * 0.9999 ", diff, sdata->current_workbase->network_diff);
 		return;
 	}
 
